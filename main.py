@@ -1,6 +1,8 @@
 import streamlit as st
 from yt_dlp import YoutubeDL
 import math
+import os
+import re
 
 st.set_page_config(page_title="YouTube Downloader", layout="centered")
 st.title("📹 YouTube Downloader with Quality Selector + Progress Bar")
@@ -19,6 +21,9 @@ def format_eta(seconds):
     minutes = math.floor(seconds / 60)
     seconds = int(seconds % 60)
     return f"{minutes}:{seconds:02}"
+
+def sanitize_filename(title):
+    return re.sub(r'[^\w\-_\. ]', '_', title)
 
 if url:
     with st.spinner("Fetching video info..."):
@@ -76,7 +81,6 @@ if url:
                     percent = (downloaded / total) * 100 if total else 0
                     speed = d.get('speed', 0)
                     eta = d.get('eta', 0)
-
                     bar_progress = percent / 100
                     progress_bar_v.progress(bar_progress)
                     progress_text_v.markdown(
@@ -90,10 +94,12 @@ if url:
         if download_video:
             best_audio_id = audio_formats[0][1]
             final_format = f"{selected_video_id}+{best_audio_id}"
+            safe_title = sanitize_filename(info.get('title', 'video'))
+            video_filename = f"{safe_title}.mp4"
 
             ydl_opts = {
                 'format': final_format,
-                'outtmpl': "%(title)s.%(ext)s",
+                'outtmpl': video_filename,
                 'merge_output_format': 'mp4',
                 'quiet': True,
                 'progress_hooks': build_video_progress_hook(),
@@ -103,6 +109,8 @@ if url:
                 try:
                     ydl.download([url])
                     st.success("✅ Video with audio downloaded successfully!")
+                    with open(video_filename, "rb") as f:
+                        st.download_button("📥 Click to Download Video", f, file_name=video_filename, mime="video/mp4")
                 except Exception as e:
                     st.error(f"Download error: {e}")
 
@@ -123,7 +131,6 @@ if url:
                     percent = (downloaded / total) * 100 if total else 0
                     speed = d.get('speed', 0)
                     eta = d.get('eta', 0)
-
                     bar_progress = percent / 100
                     progress_bar_a.progress(bar_progress)
                     progress_text_a.markdown(
@@ -135,9 +142,11 @@ if url:
             return [hook]
 
         if download_audio:
+            safe_title = sanitize_filename(info.get('title', 'audio'))
+            audio_filename = f"{safe_title}.webm"  # default format from yt-dlp for audio
             ydl_opts = {
                 'format': selected_audio_id,
-                'outtmpl': "%(title)s.%(ext)s",
+                'outtmpl': audio_filename,
                 'quiet': True,
                 'progress_hooks': build_audio_progress_hook(),
             }
@@ -146,5 +155,7 @@ if url:
                 try:
                     ydl.download([url])
                     st.success("✅ Audio downloaded successfully!")
+                    with open(audio_filename, "rb") as f:
+                        st.download_button("🎵 Click to Download Audio", f, file_name=audio_filename, mime="audio/webm")
                 except Exception as e:
                     st.error(f"Download error: {e}")
